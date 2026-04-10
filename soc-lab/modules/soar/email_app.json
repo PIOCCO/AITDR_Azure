@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "resources": [
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "SOAR-Email-Alert",
+      "location": "${location}",
+      "identity": { "type": "SystemAssigned" },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "triggers": {
+            "When_Incident": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "incidentId":   { "type": "string" },
+                    "incident":     { "type": "string" },
+                    "severity":     { "type": "string" },
+                    "attackerIP":   { "type": "string" },
+                    "incidentType": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "actions": {
+            "Compose_Email_Body": {
+              "type": "Compose",
+              "runAfter": {},
+              "inputs": "🚨 AITDR Security Alert\n\nIncident ID: @{triggerBody()?['incidentId']}\nType: @{triggerBody()?['incidentType']}\nSeverity: @{triggerBody()?['severity']}\nAttacker IP: @{triggerBody()?['attackerIP']}\nDetails: @{triggerBody()?['incident']}\nTime: @{utcNow()}"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

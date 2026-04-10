@@ -64,7 +64,7 @@ resource "azurerm_network_security_group" "nsg_dmz" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "22"
-    source_address_prefix      = "*"
+    source_address_prefix      = "${var.kali_ip}/32"
     destination_address_prefix = "*"
   }
 
@@ -245,6 +245,11 @@ resource "azurerm_network_security_group" "nsg_soar" {
   }
 }
 
+
+output "nsg_dmz_id" {
+  value = azurerm_network_security_group.nsg_dmz.id
+ }
+
 # ============================================
 # ASSOCIATE NSGs TO SUBNETS
 # ============================================
@@ -271,4 +276,8 @@ resource "azurerm_subnet_network_security_group_association" "siem" {
 resource "azurerm_subnet_network_security_group_association" "soar" {
   subnet_id                 = var.soar_subnet_id
   network_security_group_id = azurerm_network_security_group.nsg_soar.id
+}
+
+output "nsg_soar_id" {
+  value = azurerm_network_security_group.nsg_soar.id
 }

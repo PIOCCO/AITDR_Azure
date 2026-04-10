@@ -1,6 +1,7 @@
 # ============================================
-# MODULE: LOGIC APPS SOAR
-# Auto responds to Sentinel incidents
+# MODULE: SOAR
+# Terraform owns: RBAC + Sentinel rules only
+# ARM owns: Logic App definitions
 # ============================================
 
 variable "resource_group_name" {}
@@ -9,167 +10,168 @@ variable "sentinel_workspace_id" {}
 variable "sentinel_workspace_name" {}
 variable "alert_email" {}
 variable "subscription_id" {}
+variable "sentinel_principal_id" {}
 variable "nsg_name" {}
-
+variable "nsg_soar_id" {}
 
 # ============================================
-# LOGIC APP 1 - Auto Ban SSH Attackers
-# Triggers on SSH Brute Force incident
+# ARM DEPLOYMENT - Ban Attacker Logic App
+# ARM owns this resource completely
 # ============================================
-resource "azurerm_logic_app_workflow" "ban_ssh_attacker" {
-  name                = "SOAR-Ban-SSH-Attacker"
-  location            = var.location
+resource "azurerm_resource_group_template_deployment" "ban_attacker" {
+  name                = "soar-ban-attacker"
   resource_group_name = var.resource_group_name
-  
+  deployment_mode     = "Incremental"
 
-  identity {
-    type = "SystemAssigned"
-  }
-
-  tags = {
-    environment = "SOC-Lab"
-    project     = "AITDR"
-  }
+  template_content = templatefile("${path.module}/logic_app.json", {
+    location        = var.location
+    subscription_id = var.subscription_id
+    resource_group  = var.resource_group_name
+    nsg_name        = var.nsg_name
+  })
 }
 
 # ============================================
-# LOGIC APP 2 - Email Alert On Attack
-# Sends email when any incident created
+# ARM DEPLOYMENT - Email Alert Logic App
+# ARM owns this resource completely
 # ============================================
-resource "azurerm_logic_app_workflow" "email_alert" {
-  name                = "SOAR-Email-Alert"
-  location            = var.location
+resource "azurerm_resource_group_template_deployment" "email_alert" {
+  name                = "soar-email-alert"
   resource_group_name = var.resource_group_name
+  deployment_mode     = "Incremental"
 
-  identity {
-    type = "SystemAssigned"
-  }
-
-  tags = {
-    environment = "SOC-Lab"
-    project     = "AITDR"
-  }
+  template_content = templatefile("${path.module}/email_app.json", {
+    location    = var.location
+    alert_email = var.alert_email
+  })
 }
 
 # ============================================
-# LOGIC APP 3 - Auto Close False Positives
-# Closes incidents from known safe IPs
+# ARM DEPLOYMENT - Cleanup Logic App
 # ============================================
-resource "azurerm_logic_app_workflow" "close_false_positive" {
-  name                = "SOAR-Close-False-Positive"
-  location            = var.location
+resource "azurerm_resource_group_template_deployment" "cleanup_bans" {
+  name                = "soar-cleanup-bans"
   resource_group_name = var.resource_group_name
+  deployment_mode     = "Incremental"
 
-  identity {
-    type = "SystemAssigned"
-  }
-
-  tags = {
-    environment = "SOC-Lab"
-    project     = "AITDR"
-  }
-}
-
-# ============================================
-# TRIGGER - SSH Brute Force
-# Runs when Sentinel creates SSH incident
-# ============================================
-resource "azurerm_logic_app_trigger_http_request" "ssh_trigger" {
-  name         = "When-SSH-Incident-Created"
-  logic_app_id = azurerm_logic_app_workflow.ban_ssh_attacker.id
-
-  schema = jsonencode({
-    type = "object"
-    properties = {
-      incidentId = { type = "string" }
-      attackerIP = { type = "string" }
-      severity   = { type = "string" }
-    }
+  template_content = jsonencode({
+    "$schema"      = "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"
+    contentVersion = "1.0.0.0"
+    resources = [{
+      type       = "Microsoft.Logic/workflows"
+      apiVersion = "2019-05-01"
+      name       = "SOAR-Cleanup-Bans"
+      location   = var.location
+      identity   = { type = "SystemAssigned" }
+      properties = {
+        state = "Enabled"
+        definition = {
+          "$schema"      = "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#"
+          contentVersion = "1.0.0.0"
+          triggers = {
+            Daily_Cleanup = {
+              type = "Recurrence"
+              recurrence = {
+                frequency = "Day"
+                interval  = 1
+              }
+            }
+          }
+          actions = {}
+        }
+      }
+    }]
   })
 }
 
 # ============================================
-# ACTION - Block Attacker IP (SSH brute force)
+# ARM DEPLOYMENT - Close False Positives
 # ============================================
-resource "azurerm_logic_app_action_http" "block_ssh_attacker_ip" {
-  name         = "Block-Attacker-IP"
-  logic_app_id = azurerm_logic_app_workflow.ban_ssh_attacker.id
+resource "azurerm_resource_group_template_deployment" "close_false_positive" {
+  name                = "soar-close-false-positive"
+  resource_group_name = var.resource_group_name
+  deployment_mode     = "Incremental"
 
-  method = "PUT"
-
-  uri = "https://management.azure.com/subscriptions/${var.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.Network/networkSecurityGroups/${var.nsg_name}/securityRules/deny-ssh-attacker?api-version=2023-05-01"
-
-  headers = {
-    Content-Type = "application/json"
-  }
-
-  body = jsonencode({
-    properties = {
-      priority                 = 300
-      direction                = "Inbound"
-      access                   = "Deny"
-      protocol                 = "Tcp"
-      sourceAddressPrefix      = "@{triggerBody()?['attackerIP']}"
-      sourcePortRange          = "*"
-      destinationAddressPrefix = "*"
-      destinationPortRange     = "22"
-      description              = "Auto blocked by SOAR SSH detection"
-    }
-  })
-
-  depends_on = [
-    azurerm_logic_app_trigger_http_request.ssh_trigger
-  ]
-}
-
-# ============================================
-# TRIGGER - Email Alert
-# ============================================
-resource "azurerm_logic_app_trigger_http_request" "email_trigger" {
-  name         = "When-Any-Incident-Created"
-  logic_app_id = azurerm_logic_app_workflow.email_alert.id
-
-  schema = jsonencode({
-    type = "object"
-    properties = {
-      incidentId   = { type = "string" }
-      incidentName = { type = "string" }
-      severity     = { type = "string" }
-      description  = { type = "string" }
-    }
+  template_content = jsonencode({
+    "$schema"      = "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"
+    contentVersion = "1.0.0.0"
+    resources = [{
+      type       = "Microsoft.Logic/workflows"
+      apiVersion = "2019-05-01"
+      name       = "SOAR-Close-False-Positive"
+      location   = var.location
+      identity   = { type = "SystemAssigned" }
+      properties = {
+        state = "Enabled"
+        definition = {
+          "$schema"      = "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#"
+          contentVersion = "1.0.0.0"
+          triggers = {
+            When_Incident = {
+              type = "Request"
+              kind = "Http"
+              inputs = {
+                schema = {
+                  type = "object"
+                  properties = {
+                    incidentId = { type = "string" }
+                  }
+                }
+              }
+            }
+          }
+          actions = {}
+        }
+      }
+    }]
   })
 }
 
 # ============================================
-# ACTION - Send Email On Attack
+# RBAC - Terraform owns identity assignments
+# Get Logic App principal IDs from ARM outputs
 # ============================================
-resource "azurerm_logic_app_action_http" "send_email" {
-  name         = "Send-Email-Alert"
-  logic_app_id = azurerm_logic_app_workflow.email_alert.id
-
-  method = "POST"
-  uri    = "https://prod-00.eastus.logic.azure.com/workflows/sendmail"
-
-  body = jsonencode({
-    to      = var.alert_email
-    subject = "🚨 AITDR Security Alert - New Incident"
-    body    = "A new security incident has been detected in your AITDR lab."
-  })
-
-  depends_on = [azurerm_logic_app_trigger_http_request.email_trigger]
+data "azurerm_logic_app_workflow" "ban_attacker" {
+  name                = "SOAR-Ban-Attacker"
+  resource_group_name = var.resource_group_name
+  depends_on          = [azurerm_resource_group_template_deployment.ban_attacker]
 }
+
+resource "azurerm_role_assignment" "soar_network_contributor" {
+  scope                = var.nsg_soar_id
+  role_definition_name = "Network Contributor"
+  principal_id         = data.azurerm_logic_app_workflow.ban_attacker.identity[0].principal_id
+  depends_on           = [azurerm_resource_group_template_deployment.ban_attacker]
+}
+
+resource "azurerm_role_assignment" "soar_vm_contributor" {
+  scope                = "/subscriptions/${var.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.Compute/virtualMachines/VM1-WebServer"
+  role_definition_name = "Virtual Machine Contributor"
+  principal_id         = data.azurerm_logic_app_workflow.ban_attacker.identity[0].principal_id
+  depends_on           = [azurerm_resource_group_template_deployment.ban_attacker]
+}
+
 # ============================================
-# SENTINEL AUTOMATION RULE - SSH Brute Force
+# SENTINEL AUTOMATION RULES
+# Terraform owns Sentinel resources
 # ============================================
-resource "azurerm_sentinel_automation_rule" "ban_ssh" {
-  name                       = "7b3f4c2a-1234-5678-abcd-ef0123456789"
+resource "azurerm_sentinel_automation_rule" "auto_ban" {
+  name                       = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
   log_analytics_workspace_id = var.sentinel_workspace_id
-  display_name               = "Auto Ban SSH Brute Force Attackers"
+  display_name               = "Auto Ban Brute Force Attackers"
   order                      = 1
   enabled                    = true
+  triggers_on                = "Incidents"
+  triggers_when              = "Created"
 
-  triggers_on   = "Incidents"
-  triggers_when = "Created"
+  condition_json = jsonencode([{
+    conditionType = "Property"
+    conditionProperties = {
+      propertyName   = "IncidentSeverity"
+      operator       = "Equals"
+      propertyValues = ["High"]
+    }
+  }])
 
   action_incident {
     order    = 1
@@ -178,18 +180,14 @@ resource "azurerm_sentinel_automation_rule" "ban_ssh" {
   }
 }
 
-# ============================================
-# SENTINEL AUTOMATION RULE - Web Attack
-# ============================================
 resource "azurerm_sentinel_automation_rule" "web_attack_response" {
   name                       = "8c4e5d3b-2345-6789-bcde-f01234567890"
   log_analytics_workspace_id = var.sentinel_workspace_id
   display_name               = "Auto Respond To Web Attacks"
   order                      = 2
   enabled                    = true
-
-  triggers_on   = "Incidents"
-  triggers_when = "Created"
+  triggers_on                = "Incidents"
+  triggers_when              = "Created"
 
   action_incident {
     order    = 1
@@ -197,18 +195,26 @@ resource "azurerm_sentinel_automation_rule" "web_attack_response" {
     severity = "Medium"
   }
 }
+
 # ============================================
 # OUTPUTS
 # ============================================
-output "soar_ban_ssh_id" {
-  value = azurerm_logic_app_workflow.ban_ssh_attacker.id
+output "soar_ban_attacker_name" {
+  value = "SOAR-Ban-Attacker"
+}
+
+output "soar_email_alert_name" {
+  value = "SOAR-Email-Alert"
+}
+
+output "soar_cleanup_name" {
+  value = "SOAR-Cleanup-Bans"
 }
 
 output "soar_email_alert_id" {
-  value = azurerm_logic_app_workflow.email_alert.id
+  value = azurerm_resource_group_template_deployment.email_alert.id
 }
 
-output "soar_ban_ssh_trigger_url" {
-  value     = azurerm_logic_app_trigger_http_request.ssh_trigger.callback_url
-  sensitive = true
+output "soar_ban_attacker_id" {
+  value = azurerm_resource_group_template_deployment.ban_attacker.id
 }

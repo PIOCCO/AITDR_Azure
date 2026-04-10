@@ -134,9 +134,20 @@ ACCEPT_EULA=Y apt-get install -y msodbcsql17
 pip3 install pyodbc
 
 # ============================================
+# INSTALL SURICATA IDS/IPS
+# ============================================
+add-apt-repository -y ppa:oisf/suricata-stable
+apt-get update -y
+apt-get install -y suricata suricata-update
+suricata-update
+systemctl enable suricata
+systemctl start suricata
+
+# ============================================
 # INSTALL AZURE CLI
 # ============================================
 curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+
 
 # ============================================
 # START DOCKER
@@ -354,6 +365,118 @@ sed -i "s/PLACEHOLDER_SQL_PASS/${var.sql_admin_password}/g" /home/adminuser/pars
 chmod +x /home/adminuser/parse_logs.py
 
 # ============================================
+# CREATE Suricata Log Parser Script
+# ============================================
+
+cat > /home/adminuser/parse_suricata.py << 'PYTHON'
+#!/usr/bin/env python3
+import json
+import pyodbc
+from datetime import datetime
+import os
+
+SQL_SERVER  = "PLACEHOLDER_SQL_SERVER"
+SQL_DB      = "AttackLogsDB"
+SQL_USER    = "sqladmin"
+SQL_PASS    = "PLACEHOLDER_SQL_PASS"
+EVE_LOG     = "/var/log/suricata/eve.json"
+OFFSET_FILE = "/home/adminuser/suricata_offset.txt"
+
+conn = pyodbc.connect(
+    f'DRIVER={{ODBC Driver 17 for SQL Server}};'
+    f'SERVER={SQL_SERVER};DATABASE={SQL_DB};'
+    f'UID={SQL_USER};PWD={SQL_PASS};'
+    f'Encrypt=yes;TrustServerCertificate=no'
+)
+cursor = conn.cursor()
+
+offset = 0
+if os.path.exists(OFFSET_FILE):
+    with open(OFFSET_FILE) as f:
+        offset = int(f.read().strip() or 0)
+
+inserted = 0
+
+with open(EVE_LOG) as f:
+    f.seek(offset)
+    for line in f:
+        try:
+            event      = json.loads(line.strip())
+            src_ip     = event.get('src_ip', '')
+            dest_ip    = event.get('dest_ip', '')
+            src_port   = event.get('src_port', 0)
+            dest_port  = event.get('dest_port', 0)
+            protocol   = event.get('proto', '')
+            event_type = event.get('event_type', '')
+
+            try:
+                ts = datetime.strptime(event.get('timestamp','')[:19],'%Y-%m-%dT%H:%M:%S')
+            except:
+                ts = datetime.now()
+
+            alert_sig = alert_sev = http_url = http_method = ''
+            http_host = http_ua = http_body = payload = ''
+            packet_data = dns_query = tls_sni = ''
+            bytes_in = bytes_out = 0
+
+            if event_type == 'alert':
+                a = event.get('alert', {})
+                alert_sig   = a.get('signature', '')[:500]
+                alert_sev   = str(a.get('severity', ''))
+                payload     = event.get('payload_printable', '')[:4000]
+                packet_data = event.get('packet', '')[:4000]
+            elif event_type == 'http':
+                h = event.get('http', {})
+                http_url    = h.get('url', '')[:1000]
+                http_method = h.get('http_method', '')[:10]
+                http_host   = h.get('hostname', '')[:200]
+                http_ua     = h.get('http_user_agent', '')[:500]
+                http_body   = h.get('http_request_body_printable', '')[:4000]
+            elif event_type == 'flow':
+                fl = event.get('flow', {})
+                bytes_in  = fl.get('bytes_toclient', 0)
+                bytes_out = fl.get('bytes_toserver', 0)
+            elif event_type == 'dns':
+                dns_query = event.get('dns', {}).get('rrname', '')[:500]
+            elif event_type == 'tls':
+                tls_sni = event.get('tls', {}).get('sni', '')[:200]
+
+            cursor.execute("""
+                INSERT INTO PacketLogs (
+                    timestamp,src_ip,dest_ip,src_port,dest_port,
+                    protocol,alert_signature,alert_severity,
+                    http_url,http_method,http_host,http_user_agent,
+                    http_body,payload,packet_data,
+                    flow_bytes_in,flow_bytes_out,
+                    dns_query,tls_sni,raw_json
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+                ts,src_ip,dest_ip,src_port,dest_port,
+                protocol,alert_sig,alert_sev,
+                http_url,http_method,http_host,http_ua,
+                http_body,payload,packet_data,
+                bytes_in,bytes_out,
+                dns_query,tls_sni,
+                line.strip()[:4000]
+            )
+            inserted += 1
+        except:
+            continue
+
+    with open(OFFSET_FILE,'w') as of:
+        of.write(str(f.tell()))
+
+conn.commit()
+conn.close()
+print(f"[{datetime.now()}] Inserted {inserted} packet logs ✅")
+PYTHON
+
+chmod +x /home/adminuser/parse_suricata.py
+
+sed -i "s/PLACEHOLDER_SQL_SERVER/${var.sql_server_fqdn}/g" /home/adminuser/parse_suricata.py
+sed -i "s/PLACEHOLDER_SQL_PASS/${var.sql_admin_password}/g" /home/adminuser/parse_suricata.py
+
+# ============================================
 # CREATE LOG COLLECTION SCRIPT
 # ============================================
 cat > /home/adminuser/collect_logs.sh << 'SCRIPT'
@@ -491,7 +614,7 @@ chmod +x /home/adminuser/collect_logs.sh
 # CRON JOB ONLY - No boot service
 # ============================================
 echo "* * * * * root bash /home/adminuser/collect_logs.sh" >> /etc/crontab
-
+echo "* * * * * root python3 /home/adminuser/parse_suricata.py >> /var/log/suricata_parser.log 2>&1" >> /etc/crontab
 
 systemctl restart rsyslog
 

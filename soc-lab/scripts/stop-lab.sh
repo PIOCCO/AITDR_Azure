@@ -18,6 +18,10 @@ az vm deallocate \
   --resource-group Bi_solution_rg \
   --name VM1-WebServer
 
+az vm deallocate \
+  --resource-group Bi_solution_rg \
+  --name VM2-ML-Analysis
+
 # Logout Azure session
 az logout
 

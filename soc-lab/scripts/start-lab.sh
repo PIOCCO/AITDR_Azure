@@ -6,6 +6,10 @@ az vm start \
   --resource-group Bi_solution_rg \
   --name VM1-WebServer
 
+az vm start \
+  --resource-group Bi_solution_rg \
+  --name VM2-ML-Analysis
+
 # Wait for VM to boot
 echo "Waiting for VM to start..."
 sleep 60

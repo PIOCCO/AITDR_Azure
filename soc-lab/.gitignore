@@ -1,6 +1,20 @@
+# Terraform working directory
 .terraform/
-terraform.tfvars
-terraform.tfstate
-terraform.tfstate.backup
+
+# State files (NEVER COMMIT)
+*.tfstate
+*.tfstate.*
+terraform.tfstate.d/
+
+# Variables (may contain secrets)
 *.tfvars
+terraform.tfvars
+
+# Plan files
+tfplan
+
+# Crash / backup files
+*.backup
+
+# Lock file (safe to commit, but optional choice)
 .terraform.lock.hcl

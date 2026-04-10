@@ -30,7 +30,7 @@ resource "random_string" "suffix" {
 # Container to store log files
 resource "azurerm_storage_container" "logs_container" {
   name                  = "attack-logs"
-  storage_account_name  = azurerm_storage_account.logs_storage.name  
+  storage_account_id  = azurerm_storage_account.logs_storage.id 
   container_access_type = "private"
 }
 

@@ -35,10 +35,11 @@ output "linux_syslog_dcr_id" {
   value = module.sentinel.linux_syslog_dcr_id
 }
 
-output "soar_ban_ssh_id" {
-  value = module.soar.soar_ban_ssh_id
-}
 
 output "soar_email_alert_id" {
   value = module.soar.soar_email_alert_id
+}
+
+output "soar_ban_attacker_id" {
+  value = module.soar.soar_ban_attacker_id
 }

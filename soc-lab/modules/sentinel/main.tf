@@ -39,22 +39,32 @@ resource "azurerm_sentinel_alert_rule_scheduled" "ssh_brute_force" {
   display_name               = "SSH Brute Force Attack Detected"
   severity                   = "High"
   enabled                    = true
-
   depends_on = [azurerm_sentinel_log_analytics_workspace_onboarding.sentinel]
 
   query = <<-QUERY
     Syslog
     | where Facility == "auth"
     | where SyslogMessage contains "Invalid user"
-    | summarize Count = count() by HostIP, bin(TimeGenerated, 5m)
+    | extend AttackerIP = extract(@"(\d+\.\d+\.\d+\.\d+)", 1, SyslogMessage)
+    | where isnotempty(AttackerIP)
+    | summarize Count = count() by AttackerIP, bin(TimeGenerated, 5m)
     | where Count > 10
+    | project AttackerIP, Count
   QUERY
 
-  query_frequency = "PT5M"
-  query_period    = "PT5M"
+  query_frequency   = "PT5M"
+  query_period      = "PT5M"
   trigger_operator  = "GreaterThan"
   trigger_threshold = 0
-  tactics = ["CredentialAccess", "InitialAccess"]
+  tactics           = ["CredentialAccess"]
+
+  entity_mapping {
+    entity_type = "IP"
+    field_mapping {
+      identifier  = "Address"
+      column_name = "AttackerIP"
+    }
+  }
 }
 
 # ============================================
@@ -308,4 +318,8 @@ output "linux_syslog_dcr_id" {
 
 output "sentinel_workspace_key" {
   value = azurerm_log_analytics_workspace.sentinel_workspace.primary_shared_key
+}
+
+output "workspace_guid" {
+  value = azurerm_log_analytics_workspace.sentinel_workspace.workspace_id
 }

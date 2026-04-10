@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.0"
+      version = ">= 3.84.0"
     }
   }
 }
@@ -122,8 +122,10 @@ module "soar" {
   sentinel_workspace_id   = module.sentinel.sentinel_workspace_id
   sentinel_workspace_name = "aitdr-sentinel-workspace"
   alert_email             = var.alert_email
-  subscription_id = var.subscription_id
-  nsg_name        = var.nsg_name
+  subscription_id         = var.subscription_id
+  nsg_name                = var.nsg_name
+  sentinel_principal_id = var.sentinel_principal_id
+  nsg_soar_id = module.nsg.nsg_soar_id
 }
 
 module "vm2_ml" {
@@ -137,4 +139,27 @@ module "vm2_ml" {
   sentinel_workspace_id  = module.sentinel.sentinel_workspace_id
   sentinel_workspace_key = module.sentinel.sentinel_workspace_key
   storage_account_name   = module.vnet2.storage_account_name
+}
+
+# module "vpn" {
+#   source               = "./modules/vpn"
+#   resource_group_name  = var.resource_group_name
+#   location             = var.location
+#   gateway_subnet_id    = module.vnet2.gateway_subnet_id
+#   vpn_root_certificate = var.vpn_root_certificate
+# }
+
+module "data_sources" {
+  source                  = "./modules/data_sources"
+  resource_group_name     = var.resource_group_name
+  location                = var.location
+  storage_account_id      = module.vnet2.storage_account_id
+  storage_account_name    = module.vnet2.storage_account_name
+  sentinel_workspace_id   = module.sentinel.sentinel_workspace_id
+  sentinel_workspace_name = "aitdr-sentinel-workspace"
+  network_watcher_name    = module.data_sources.nw_name
+  network_watcher_rg      = module.data_sources.nw_rg
+  nsg_dmz_id              = module.nsg.nsg_dmz_id
+  sentinel_workspace_guid = module.sentinel.workspace_guid
+  dmz_subnet_id           = module.vnet1.dmz_subnet_id
 }

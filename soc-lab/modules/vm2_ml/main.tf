@@ -11,8 +11,10 @@ variable "ssh_public_key" {}
 variable "sql_server_fqdn" {}
 variable "sql_admin_password" {}
 variable "sentinel_workspace_id" {}
-variable "sentinel_workspace_key" {}
 variable "storage_account_name" {}
+variable "sentinel_workspace_key" {
+  type = string
+}
 variable "admin_username" {
   default = "adminuser"
 }
@@ -31,6 +33,19 @@ resource "azurerm_network_interface" "vm2_nic" {
     private_ip_address_allocation = "Static"
     private_ip_address            = "10.10.2.40"
   }
+}
+
+# ============================================
+# NETWORK INTERFACE - LOG ANALYTICS READER ROLE
+# ============================================
+resource "azurerm_role_assignment" "vm2_logs_reader" {
+  scope                = var.sentinel_workspace_id
+  role_definition_name = "Log Analytics Reader"
+  principal_id         = azurerm_linux_virtual_machine.vm2_ml.identity[0].principal_id
+
+  depends_on = [
+    azurerm_linux_virtual_machine.vm2_ml
+  ]
 }
 
 # ============================================
@@ -61,7 +76,7 @@ resource "azurerm_linux_virtual_machine" "vm2_ml" {
   source_image_reference {
     publisher = "Canonical"
     offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
+    sku = "18.04-LTS"
     version   = "latest"
   }
 
@@ -119,7 +134,7 @@ pip3 install \
 # ============================================
 # CREATE ML SCRIPT
 # ============================================
-cat > /home/adminuser/ml_anomaly_detection.py << 'PYTHON'
+cat > /home/adminuser/ml_anomaly_detection.py <<PYTHON
 #!/usr/bin/env python3
 import pyodbc
 import pandas as pd
@@ -136,11 +151,11 @@ import os
 # ============================================
 # CONFIG
 # ============================================
-WORKSPACE_ID = "PLACEHOLDER_WORKSPACE_ID"
-SQL_SERVER   = "PLACEHOLDER_SQL_SERVER"
+WORKSPACE_ID = "${var.sentinel_workspace_id}"
+SQL_SERVER   = "${var.sql_server_fqdn}"
 SQL_DB       = "AttackLogsDB"
 SQL_USER     = "sqladmin"
-SQL_PASS     = "PLACEHOLDER_SQL_PASS"
+SQL_PASS     = "${var.sql_admin_password}"
 MODEL_PATH   = "/home/adminuser/models"
 
 os.makedirs(MODEL_PATH, exist_ok=True)
@@ -229,7 +244,6 @@ sql_df = pd.read_sql("""
     SUM(CASE WHEN attack_type='Botnet' THEN 1 ELSE 0 END) as Botnet,
     SUM(CASE WHEN attack_type='BruteForce' THEN 1 ELSE 0 END) as BruteForce
   FROM WebAttacks
-  WHERE attack_date >= DATEADD(day, -7, GETDATE())
   GROUP BY attack_date
   ORDER BY attack_date
 """, conn)
@@ -358,11 +372,8 @@ conn.close()
 print(f"[{datetime.now()}] Done! Saved {len(anomalies_found)} anomalies ✅")
 PYTHON
 
-# Replace placeholders
-sed -i "s/PLACEHOLDER_WORKSPACE_ID/${var.sentinel_workspace_id}/g" /home/adminuser/ml_anomaly_detection.py
-sed -i "s/PLACEHOLDER_SQL_SERVER/${var.sql_server_fqdn}/g" /home/adminuser/ml_anomaly_detection.py
-sed -i "s/PLACEHOLDER_SQL_PASS/${var.sql_admin_password}/g" /home/adminuser/ml_anomaly_detection.py
 chmod +x /home/adminuser/ml_anomaly_detection.py
+chown adminuser:adminuser /home/adminuser/ml_anomaly_detection.py
 
 mkdir -p /home/adminuser/models
 

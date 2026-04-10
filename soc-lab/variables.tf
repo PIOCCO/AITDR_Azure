@@ -42,7 +42,7 @@ variable "vnet3_address_space" {
 variable "kali_ip" {
   description = "KaliLinux public IP for attack simulation"
   type        = string
-  default     = "0.0.0.0"  # replace with your real Kali IP later
+  default     = "196.117.56.86"  
 }
 
 variable "sql_admin_password" {
@@ -67,4 +67,14 @@ variable "subscription_id" {
 
 variable "nsg_name" {
   type = string
+}
+
+variable "vpn_root_certificate" {
+  description = "Base64 root certificate for VPN"
+  type        = string
+}
+
+variable "sentinel_principal_id" {
+  description = "Sentinel service principal ID"
+  type        = string
 }

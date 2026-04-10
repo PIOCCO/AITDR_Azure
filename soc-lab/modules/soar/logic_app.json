@@ -1,0 +1,314 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "resources": [
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "SOAR-Ban-Attacker",
+      "location": "${location}",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "triggers": {
+            "When_Incident_Created": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "attackerIP":   { "type": "string" },
+                    "incident":     { "type": "string" },
+                    "incidentType": { "type": "string" },
+                    "severity":     { "type": "string" },
+                    "incidentId":   { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "actions": {
+            "Set_Normalized_Type": {
+              "type": "Compose",
+              "runAfter": {},
+              "inputs": "@toLower(triggerBody()?['incidentType'])"
+            },
+            "Switch_Incident": {
+              "type": "Switch",
+              "runAfter": { "Set_Normalized_Type": ["Succeeded"] },
+              "expression": "@outputs('Set_Normalized_Type')",
+              "cases": {
+                "rce": {
+                  "case": "rce",
+                  "actions": {
+                    "Block_IP_RCE": {
+                      "type": "Http",
+                      "runAfter": {},
+                      "inputs": {
+                        "method": "PUT",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Network/networkSecurityGroups/${nsg_name}/securityRules/AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}?api-version=2023-05-01",
+                        "authentication": { "type": "ManagedServiceIdentity" },
+                        "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S" },
+                        "body": {
+                          "properties": {
+                            "priority": "@{add(200, int(last(split(triggerBody()?['attackerIP'], '.'))))}",
+                            "direction": "Inbound",
+                            "access": "Deny",
+                            "protocol": "*",
+                            "sourceAddressPrefix": "@{triggerBody()?['attackerIP']}",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "*",
+                            "description": "AutoBan RCE @{triggerBody()?['incidentId']} - @{utcNow()}",
+                            "name": "AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}"
+                          }
+                        }
+                      }
+                    },
+                    "Deallocate_VM": {
+                      "type": "Http",
+                      "runAfter": { "Block_IP_RCE": ["Succeeded"] },
+                      "inputs": {
+                        "method": "POST",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Compute/virtualMachines/VM1-WebServer/deallocate?api-version=2023-03-01",
+                        "authentication": { "type": "ManagedServiceIdentity" },
+                        "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S" }
+                      }
+                    }
+                  }
+                },
+                "cmdi": {
+                  "case": "cmdi",
+                  "actions": {
+                    "Block_IP_CMDi": {
+                      "type": "Http",
+                      "runAfter": {},
+                      "inputs": {
+                        "method": "PUT",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Network/networkSecurityGroups/${nsg_name}/securityRules/AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}?api-version=2023-05-01",
+                        "authentication": { "type": "ManagedServiceIdentity" },
+                        "body": {
+                          "properties": {
+                            "priority": "@{add(200, int(last(split(triggerBody()?['attackerIP'], '.'))))}",
+                            "direction": "Inbound",
+                            "access": "Deny",
+                            "protocol": "*",
+                            "sourceAddressPrefix": "@{triggerBody()?['attackerIP']}",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "*",
+                            "description": "AutoBan CMDi @{triggerBody()?['incidentId']} - @{utcNow()}",
+                            "name": "AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}"
+                          }
+                        }
+                      }
+                    },
+                    "Deallocate_VM_CMDi": {
+                      "type": "Http",
+                      "runAfter": { "Block_IP_CMDi": ["Succeeded"] },
+                      "inputs": {
+                        "method": "POST",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Compute/virtualMachines/VM1-WebServer/deallocate?api-version=2023-03-01",
+                        "authentication": { "type": "ManagedServiceIdentity" }
+                      }
+                    }
+                  }
+                },
+                "sqli": {
+                  "case": "sqli",
+                  "actions": {
+                    "Block_IP_SQLi": {
+                      "type": "Http",
+                      "runAfter": {},
+                      "inputs": {
+                        "method": "PUT",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Network/networkSecurityGroups/${nsg_name}/securityRules/AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}?api-version=2023-05-01",
+                        "authentication": { "type": "ManagedServiceIdentity" },
+                        "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S" },
+                        "body": {
+                          "properties": {
+                            "priority": "@{add(200, int(last(split(triggerBody()?['attackerIP'], '.'))))}",
+                            "direction": "Inbound",
+                            "access": "Deny",
+                            "protocol": "*",
+                            "sourceAddressPrefix": "@{triggerBody()?['attackerIP']}",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "*",
+                            "description": "AutoBan SQLi @{triggerBody()?['incidentId']} - @{utcNow()}",
+                            "name": "AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "bruteforce": {
+                  "case": "bruteforce",
+                  "actions": {
+                    "Block_IP_BruteForce": {
+                      "type": "Http",
+                      "runAfter": {},
+                      "inputs": {
+                        "method": "PUT",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Network/networkSecurityGroups/${nsg_name}/securityRules/AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}?api-version=2023-05-01",
+                        "authentication": { "type": "ManagedServiceIdentity" },
+                        "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S" },
+                        "body": {
+                          "properties": {
+                            "priority": "@{add(200, int(last(split(triggerBody()?['attackerIP'], '.'))))}",
+                            "direction": "Inbound",
+                            "access": "Deny",
+                            "protocol": "*",
+                            "sourceAddressPrefix": "@{triggerBody()?['attackerIP']}",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "*",
+                            "description": "AutoBan BruteForce @{triggerBody()?['incidentId']} - @{utcNow()}",
+                            "name": "AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "ssh": {
+                  "case": "ssh",
+                  "actions": {
+                    "Block_IP_SSH": {
+                      "type": "Http",
+                      "runAfter": {},
+                      "inputs": {
+                        "method": "PUT",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Network/networkSecurityGroups/${nsg_name}/securityRules/AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}?api-version=2023-05-01",
+                        "authentication": { "type": "ManagedServiceIdentity" },
+                        "retryPolicy": { "type": "exponential", "count": 3, "interval": "PT10S" },
+                        "body": {
+                          "properties": {
+                            "priority": "@{add(200, int(last(split(triggerBody()?['attackerIP'], '.'))))}",
+                            "direction": "Inbound",
+                            "access": "Deny",
+                            "protocol": "*",
+                            "sourceAddressPrefix": "@{triggerBody()?['attackerIP']}",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "*",
+                            "description": "AutoBan SSH @{triggerBody()?['incidentId']} - @{utcNow()}",
+                            "name": "AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "lfi": {
+                  "case": "lfi",
+                  "actions": {
+                    "Block_IP_LFI": {
+                      "type": "Http",
+                      "runAfter": {},
+                      "inputs": {
+                        "method": "PUT",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Network/networkSecurityGroups/${nsg_name}/securityRules/AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}?api-version=2023-05-01",
+                        "authentication": { "type": "ManagedServiceIdentity" },
+                        "body": {
+                          "properties": {
+                            "priority": "@{add(200, int(last(split(triggerBody()?['attackerIP'], '.'))))}",
+                            "direction": "Inbound",
+                            "access": "Deny",
+                            "protocol": "*",
+                            "sourceAddressPrefix": "@{triggerBody()?['attackerIP']}",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*",
+                            "destinationPortRange": "*",
+                            "description": "AutoBan LFI @{triggerBody()?['incidentId']} - @{utcNow()}",
+                            "name": "AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "xss": {
+                  "case": "xss",
+                  "actions": {
+                    "Log_XSS": {
+                      "type": "Http",
+                      "runAfter": {},
+                      "inputs": {
+                        "method": "POST",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Insights/logs?api-version=2021-06-01",
+                        "authentication": { "type": "ManagedServiceIdentity" },
+                        "body": {
+                          "attackerIP":   "@{triggerBody()?['attackerIP']}",
+                          "incidentType": "@{triggerBody()?['incidentType']}",
+                          "incidentId":   "@{triggerBody()?['incidentId']}",
+                          "action":       "LogOnly",
+                          "timestamp":    "@{utcNow()}"
+                        }
+                      }
+                    }
+                  }
+                },
+                "csrf": {
+                  "case": "csrf",
+                  "actions": {
+                    "Log_CSRF": {
+                      "type": "Http",
+                      "runAfter": {},
+                      "inputs": {
+                        "method": "POST",
+                        "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Insights/logs?api-version=2021-06-01",
+                        "authentication": { "type": "ManagedServiceIdentity" },
+                        "body": {
+                          "attackerIP":   "@{triggerBody()?['attackerIP']}",
+                          "incidentType": "@{triggerBody()?['incidentType']}",
+                          "incidentId":   "@{triggerBody()?['incidentId']}",
+                          "action":       "LogOnly",
+                          "timestamp":    "@{utcNow()}"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "default": {
+                "actions": {
+                  "Block_IP_Default": {
+                    "type": "Http",
+                    "runAfter": {},
+                    "inputs": {
+                      "method": "PUT",
+                      "uri": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Network/networkSecurityGroups/${nsg_name}/securityRules/AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}?api-version=2023-05-01",
+                      "authentication": { "type": "ManagedServiceIdentity" },
+                      "body": {
+                        "properties": {
+                          "priority": "@{add(200, int(last(split(triggerBody()?['attackerIP'], '.'))))}",
+                          "direction": "Inbound",
+                          "access": "Deny",
+                          "protocol": "*",
+                          "sourceAddressPrefix": "@{triggerBody()?['attackerIP']}",
+                          "sourcePortRange": "*",
+                          "destinationAddressPrefix": "*",
+                          "destinationPortRange": "*",
+                          "description": "AutoBan Default @{triggerBody()?['incidentId']} - @{utcNow()}",
+                          "name": "AutoBan-@{replace(triggerBody()?['attackerIP'], '.', '-')}"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
