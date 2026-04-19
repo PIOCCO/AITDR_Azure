@@ -82,15 +82,30 @@ module "nsg" {
   soar_subnet_id   = module.vnet3.soar_subnet_id
 }
 
+module "key_vault" {
+  source = "./modules/key_vault"
+
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  tenant_id           = var.tenant_id
+  admin_object_id     = var.admin_object_id
+
+  secrets = {
+    sql-pqss = var.sql_admin_password
+  }
+}
+
 module "vm1_webserver" {
   source              = "./modules/vm1_webserver"
   resource_group_name = azurerm_resource_group.soc_lab.name
   location            = azurerm_resource_group.soc_lab.location
   dmz_subnet_id       = module.vnet1.dmz_subnet_id
-  storage_account_name = module.vnet2.storage_account_name
-  ssh_public_key       = var.ssh_public_key
-  sql_server_fqdn    = module.sql_database.sql_server_fqdn
-  sql_admin_password = var.sql_admin_password
+  ssh_public_key      = var.ssh_public_key
+  key_vault_uri       = module.key_vault.key_vault_uri
+  key_vault_id = module.key_vault.key_vault_id
+  storage_account_id = module.vnet2.storage_account_id
+
+  depends_on = [module.key_vault]
 }
 
 module "sql_database" {
@@ -126,6 +141,8 @@ module "soar" {
   nsg_name                = var.nsg_name
   sentinel_principal_id = var.sentinel_principal_id
   nsg_soar_id = module.nsg.nsg_soar_id
+
+  depends_on = [module.vm1_webserver]
 }
 
 module "vm2_ml" {

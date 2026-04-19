@@ -78,3 +78,13 @@ variable "sentinel_principal_id" {
   description = "Sentinel service principal ID"
   type        = string
 }
+
+variable "tenant_id" {
+  description = "Azure AD tenant ID for Key Vault"
+  type        = string
+} 
+
+variable "admin_object_id" {
+  description = "Azure AD object ID of the admin user for Key Vault access"
+  type        = string
+}
