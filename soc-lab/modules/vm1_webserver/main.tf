@@ -16,6 +16,100 @@ variable "admin_username" {
 }
 
 # ============================================
+# CLOUD-INIT CONFIGURATION
+# Bundles all scripts and systemd units
+# ============================================
+data "cloudinit_config" "vm1_config" {
+  gzip          = true
+  base64_encode = true
+
+  part {
+    content_type = "text/cloud-config"
+    content      = <<EOF
+#cloud-config
+write_files:
+  - path: /var/lib/aitdr/bootstrap.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/bootstrap.sh"))}
+
+  - path: /var/lib/aitdr/aitdr-init.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/aitdr-init.sh"))}
+
+  - path: /var/lib/aitdr/collect-logs.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/collect-logs.sh"))}
+
+  - path: /var/lib/aitdr/parse_logs.py
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/parse_logs.py"))}
+
+  - path: /var/lib/aitdr/parse_suricata.py
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/parse_suricata.py"))}
+
+  - path: /var/lib/aitdr/init_db.py
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/init_db.py"))}
+
+  - path: /var/lib/aitdr/create_tables.sql
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.root}/create_tables.sql"))}
+
+  - path: /var/lib/aitdr/aitdr-init.service
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/aitdr-init.service"))}
+
+  - path: /var/lib/aitdr/aitdr-collector.service
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/aitdr-collector.service"))}
+
+  - path: /var/lib/aitdr/aitdr-collector.timer
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/aitdr-collector.timer"))}
+
+  - path: /var/lib/aitdr/aitdr-suricata.service
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/aitdr-suricata.service"))}
+
+  - path: /var/lib/aitdr/aitdr-suricata.timer
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/aitdr-suricata.timer"))}
+
+  - path: /var/lib/aitdr/install-docker.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/install-docker.sh"))}
+
+  - path: /var/lib/aitdr/install-suricata.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/install-suricata.sh"))}
+
+  - path: /var/lib/aitdr/docker-compose.yml
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/docker-compose.yml"))}
+
+runcmd:
+  - bash /var/lib/aitdr/bootstrap.sh "${var.key_vault_uri}"
+EOF
+  }
+}
+
+# ============================================
 # PUBLIC IP
 # ============================================
 resource "azurerm_public_ip" "vm1_pip" {
@@ -79,13 +173,8 @@ resource "azurerm_linux_virtual_machine" "vm1_webserver" {
   identity {
     type = "SystemAssigned"
   }
-  # Bootstrap script - no secrets inside
-  custom_data = base64encode(
-    templatefile("${path.module}/scripts/custom_data.sh.tpl", {
-      key_vault_uri = var.key_vault_uri
-      DOCKER_COMPOSE_VERSION = "v2.24.0"
-    })
-  )
+  # Bootstrap via cloud-init
+  custom_data = data.cloudinit_config.vm1_config.rendered
 }
 
 resource "azurerm_role_assignment" "vm1_kv_reader" {

@@ -1,0 +1,12 @@
+[Unit]
+Description=AITDR Log Collection Timer
+Requires=aitdr-collector.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

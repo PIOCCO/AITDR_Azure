@@ -1,0 +1,15 @@
+[Unit]
+Description=AITDR Suricata Log Parser
+After=suricata.service aitdr-init.service
+Requires=aitdr-init.service
+ConditionPathExists=/home/adminuser/.env
+ConditionPathExists=/home/adminuser/parse_suricata.py
+ConditionPathExists=/var/log/suricata/eve.json
+
+[Service]
+Type=oneshot
+ExecStart=/opt/aitdr-venv/bin/python3 /home/adminuser/parse_suricata.py
+TimeoutStartSec=60
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aitdr-suricata

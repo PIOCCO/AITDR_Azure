@@ -1,0 +1,17 @@
+[Unit]
+Description=AITDR Initialization - Secret fetch and container startup
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/home/adminuser/.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash /home/adminuser/aitdr-init.sh
+TimeoutStartSec=300
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aitdr-init
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-# collect_logs.sh - ORCHESTRATOR ONLY v3
+# collect-logs.sh - ORCHESTRATOR ONLY v3
 # No analysis, no reports, no summaries
 # Just: collect logs → trigger parsers → upload raw
 # ============================================
@@ -9,7 +9,7 @@ set -e  # Exit on error
 
 # Logging function
 log() {
-    echo "[$(date -Iseconds)] $1" | tee -a /var/log/collect_logs.log
+    echo "[$(date -Iseconds)] $1" | tee -a /var/log/collect-logs.log
 }
 
 log "========== COLLECTION START =========="
@@ -66,6 +66,7 @@ if [ -n "$DVWA_CONTAINER" ]; then
     # Copy access log
     if docker cp "$DVWA_CONTAINER":/var/log/apache2/access.log "$STAGING_DIR/apache_access.log" 2>/dev/null; then
         log "Apache access log collected"
+        cp "$STAGING_DIR/apache_access.log" /tmp/apache_access.log
     else
         log "WARNING: Could not copy Apache access log"
     fi
@@ -73,6 +74,7 @@ if [ -n "$DVWA_CONTAINER" ]; then
     # Copy error log if exists
     if docker cp "$DVWA_CONTAINER":/var/log/apache2/error.log "$STAGING_DIR/apache_error.log" 2>/dev/null; then
         log "Apache error log collected"
+        cp "$STAGING_DIR/apache_error.log" /tmp/apache_error.log
     else
         log "WARNING: Could not copy Apache error log"
     fi
@@ -101,8 +103,9 @@ docker ps -a > "$STAGING_DIR/docker_ps_all.txt"
 # ============================================
 log "Uploading logs to Azure Storage"
 
-# In production with MSI, skip auth check entirely - Azure CLI handles token refresh
-# No need for az account show - just attempt upload
+# In production with MSI, ensure we are logged in
+az login --identity --allow-no-subscriptions >/dev/null 2>&1 || true
+
 CONTAINER_NAME="attack-logs-raw"
 
 # Create container if it doesn't exist (idempotent)
@@ -160,7 +163,7 @@ SURICATA_STATUS=0
 
 # Parse Apache logs into SQL
 if [ -f /home/adminuser/parse_logs.py ]; then
-    python3 /home/adminuser/parse_logs.py >> /var/log/collect_logs.log 2>&1
+    /opt/aitdr-venv/bin/python3 /home/adminuser/parse_logs.py >> /var/log/collect-logs.log 2>&1
     PY_STATUS=$?
     log "parse_logs.py exit code: $PY_STATUS"
 else
@@ -170,7 +173,7 @@ fi
 
 # Parse Suricata network telemetry into SQL
 if [ -f /home/adminuser/parse_suricata.py ]; then
-    python3 /home/adminuser/parse_suricata.py >> /var/log/collect_logs.log 2>&1
+    /opt/aitdr-venv/bin/python3 /home/adminuser/parse_suricata.py >> /var/log/collect-logs.log 2>&1
     SURICATA_STATUS=$?
     log "parse_suricata.py exit code: $SURICATA_STATUS"
 else

@@ -8,6 +8,30 @@
 import pyodbc
 from datetime import datetime
 import os
+import hashlib
+import urllib.request
+import json
+
+# ============================================
+# GEOIP CACHE (minimize API calls)
+# ============================================
+GEO_CACHE = {}
+
+def get_geoip(ip):
+    if ip in GEO_CACHE: return GEO_CACHE[ip]
+    if ip in ['127.0.0.1', 'localhost'] or ip.startswith('10.') or ip.startswith('172.'):
+        return "Internal", "Internal", 0, 0
+    try:
+        # Use free ip-api.com (Rate limited to 45 requests per minute)
+        with urllib.request.urlopen(f"http://ip-api.com/json/{ip}?fields=status,country,city,lat,lon", timeout=1) as response:
+            data = json.loads(response.read().decode())
+            if data['status'] == 'success':
+                res = (data['country'], data['city'], data['lat'], data['lon'])
+                GEO_CACHE[ip] = res
+                return res
+    except:
+        pass
+    return "Unknown", "Unknown", 0, 0
 
 # ============================================
 # READ CONFIG FROM SECURE FILES
@@ -112,22 +136,28 @@ try:
             else:
                 attack_type = 'Scan'
 
+            # Calculate event_hash for deduplication
+            hash_input = f"{ip}|{method}|{url}|{status}|{user_agent}"
+            event_hash = hashlib.md5(hash_input.encode()).hexdigest()[:32]
+
             try:
-                # Before cursor.execute INSERT WebAttacks
+                # Check for duplicate using event_hash
                 cursor.execute(
-                    "SELECT COUNT(*) FROM WebAttacks WHERE url_path=? AND attacker_ip=? AND attack_time > DATEADD(minute,-1,GETDATE())",
-                    url[:500], ip
+                    "SELECT COUNT(*) FROM WebAttacks WHERE event_hash=?",
+                    event_hash
                 )
 
                 if cursor.fetchone()[0] == 0:
+                    country, city, lat, lon = get_geoip(ip)
                     cursor.execute("""
                         INSERT INTO WebAttacks
-                            (attack_date, attack_time, attacker_ip, attack_type,
-                            url_path, http_method, status_code, user_agent)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            (event_hash, attack_date, attack_time, attacker_ip, attack_type,
+                            url_path, http_method, status_code, user_agent, country, city, latitude, longitude)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                        datetime.now().date(), datetime.now(),
-                        ip, attack_type, url[:500], method, status_code, user_agent[:500]
+                        event_hash, datetime.now().date(), datetime.now(),
+                        ip, attack_type, url[:500], method, status_code, user_agent[:500],
+                        country, city, lat, lon
                     )
                     web_count += 1
             except Exception as e:
@@ -148,15 +178,27 @@ try:
                 try:
                     ip       = parts[9] if 'Invalid user' in line else parts[7]
                     username = parts[7] if 'Invalid user' in line else 'unknown'
-                    cursor.execute("""
-                        INSERT INTO SSHAttacks
-                            (attack_date, attack_time, attacker_ip, username_tried, attack_type)
-                        VALUES (?, ?, ?, ?, ?)
-                    """,
-                        datetime.now().date(), datetime.now(),
-                        ip, username, 'InvalidUser'
-                    )
-                    ssh_count += 1
+                    
+                    # Calculate event_hash for SSH
+                    hash_input = f"SSH|{ip}|{username}|{line[:50]}"
+                    event_hash = hashlib.md5(hash_input.encode()).hexdigest()[:32]
+
+                    # Check for duplicate
+                    cursor.execute("SELECT COUNT(*) FROM SSHAttacks WHERE event_hash=?", event_hash)
+                    
+                    if cursor.fetchone()[0] == 0:
+                        country, city, lat, lon = get_geoip(ip)
+                        cursor.execute("""
+                            INSERT INTO SSHAttacks
+                                (event_hash, attack_date, attack_time, attacker_ip, username_tried, attack_type,
+                                country, city, latitude, longitude)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            event_hash, datetime.now().date(), datetime.now(),
+                            ip, username, 'InvalidUser',
+                            country, city, lat, lon
+                        )
+                        ssh_count += 1
                 except:
                     continue
 except Exception as e:
@@ -187,8 +229,16 @@ try:
         datetime.now().date(),
         web_count, ssh_count, bot_count, sqli_count, xss_count
     )
+# ============================================
+# DATA RETENTION (30 DAY CLEANUP)
+# ============================================
+try:
+    print("Running 30-day data retention cleanup...")
+    cursor.execute("DELETE FROM WebAttacks WHERE attack_date < DATEADD(day, -30, GETDATE())")
+    cursor.execute("DELETE FROM SSHAttacks WHERE attack_date < DATEADD(day, -30, GETDATE())")
+    cursor.execute("DELETE FROM PacketLogs WHERE timestamp < DATEADD(day, -30, GETDATE())")
 except Exception as e:
-    print(f"Summary insert error: {e}")
+    print(f"Retention cleanup error: {e}")
 
 conn.commit()
 conn.close()

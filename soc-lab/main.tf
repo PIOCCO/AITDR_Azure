@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = ">= 3.84.0"
     }
+    cloudinit = {
+      source  = "hashicorp/cloudinit"
+      version = ">= 2.3.0"
+    }
   }
 }
 
@@ -20,11 +24,6 @@ resource "azurerm_resource_group" "soc_lab" {
   }
 }
 
-resource "azurerm_role_assignment" "vm1_storage_access" {
-  scope                = module.vnet2.storage_account_id
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = module.vm1_webserver.vm1_principal_id
-}
 
 module "hub_vnet" {
   source              = "./modules/hub_vnet"
@@ -91,7 +90,9 @@ module "key_vault" {
   admin_object_id     = var.admin_object_id
 
   secrets = {
-    sql-pqss = var.sql_admin_password
+    "sql-server-fqdn"      = module.sql_database.sql_server_fqdn
+    "sql-admin-password"   = var.sql_admin_password
+    "storage-account-name" = module.vnet2.storage_account_name
   }
 }
 

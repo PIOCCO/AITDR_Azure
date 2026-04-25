@@ -1,0 +1,12 @@
+[Unit]
+Description=AITDR Suricata Parser Timer
+Requires=aitdr-suricata.service
+
+[Timer]
+OnBootSec=6min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

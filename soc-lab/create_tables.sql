@@ -2,6 +2,7 @@
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='WebAttacks' AND xtype='U')
 CREATE TABLE WebAttacks (
     id              INT IDENTITY(1,1) PRIMARY KEY,
+    event_hash      VARCHAR(32) UNIQUE,
     attack_date     DATE NOT NULL,
     attack_time     DATETIME NOT NULL,
     attacker_ip     VARCHAR(45) NOT NULL,
@@ -11,18 +12,27 @@ CREATE TABLE WebAttacks (
     status_code     INT,
     user_agent      VARCHAR(500),
     payload         VARCHAR(MAX),
+    country         VARCHAR(50),
+    city            VARCHAR(50),
+    latitude        DECIMAL(9,6),
+    longitude       DECIMAL(9,6),
     created_at      DATETIME DEFAULT GETDATE()
 );
 
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='SSHAttacks' AND xtype='U')
 CREATE TABLE SSHAttacks (
     id              INT IDENTITY(1,1) PRIMARY KEY,
+    event_hash      VARCHAR(32) UNIQUE,
     attack_date     DATE NOT NULL,
     attack_time     DATETIME NOT NULL,
     attacker_ip     VARCHAR(45) NOT NULL,
     username_tried  VARCHAR(100),
     attack_type     VARCHAR(50),
     banned          BIT DEFAULT 0,
+    country         VARCHAR(50),
+    city            VARCHAR(50),
+    latitude        DECIMAL(9,6),
+    longitude       DECIMAL(9,6),
     created_at      DATETIME DEFAULT GETDATE()
 );
 
@@ -54,6 +64,7 @@ CREATE TABLE DailySummary (
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PacketLogs' AND xtype='U')
 CREATE TABLE PacketLogs (
     id              INT IDENTITY(1,1) PRIMARY KEY,
+    event_hash      VARCHAR(32) UNIQUE,
     captured_at     DATETIME DEFAULT GETDATE(),
     timestamp       DATETIME,
     src_ip          VARCHAR(45),
@@ -61,6 +72,7 @@ CREATE TABLE PacketLogs (
     src_port        INT,
     dest_port       INT,
     protocol        VARCHAR(20),
+    event_type      VARCHAR(20),
     alert_signature VARCHAR(500),
     alert_severity  VARCHAR(20),
     http_url        VARCHAR(1000),
@@ -74,6 +86,10 @@ CREATE TABLE PacketLogs (
     flow_bytes_out  BIGINT,
     dns_query       VARCHAR(500),
     tls_sni         VARCHAR(200),
+    country         VARCHAR(50),
+    city            VARCHAR(50),
+    latitude        DECIMAL(9,6),
+    longitude       DECIMAL(9,6),
     raw_json        VARCHAR(MAX)
 );
 
@@ -111,6 +127,12 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_packet_src_ip')
     CREATE INDEX idx_packet_src_ip ON PacketLogs(src_ip);
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_packet_timestamp')
     CREATE INDEX idx_packet_timestamp ON PacketLogs(timestamp);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_web_attacks_hash')
+    CREATE INDEX idx_web_attacks_hash ON WebAttacks(event_hash);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_ssh_attacks_hash')
+    CREATE INDEX idx_ssh_attacks_hash ON SSHAttacks(event_hash);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_packet_logs_hash')
+    CREATE INDEX idx_packet_logs_hash ON PacketLogs(event_hash);
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_ml_anomalies_date')
     CREATE INDEX idx_ml_anomalies_date ON MLAnomalies(detected_at);
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name='idx_ml_anomalies_type')

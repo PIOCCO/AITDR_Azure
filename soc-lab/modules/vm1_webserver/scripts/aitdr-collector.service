@@ -1,0 +1,14 @@
+[Unit]
+Description=AITDR Log Collection
+After=docker.service aitdr-init.service
+Requires=aitdr-init.service
+ConditionPathExists=/home/adminuser/.env
+ConditionPathExists=/home/adminuser/collect-logs.sh
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/adminuser/collect-logs.sh
+TimeoutStartSec=120
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aitdr-collector

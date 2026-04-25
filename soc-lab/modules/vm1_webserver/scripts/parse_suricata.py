@@ -9,10 +9,31 @@ import pyodbc
 from datetime import datetime, timezone
 import os
 import hashlib
+import urllib.request
 from typing import Dict, List, Optional, Tuple
 import sys
 import time
 import logging
+
+# ============================================
+# GEOIP CACHE
+# ============================================
+GEO_CACHE = {}
+
+def get_geoip(ip):
+    if ip in GEO_CACHE: return GEO_CACHE[ip]
+    if ip in ['127.0.0.1', 'localhost'] or ip.startswith('10.') or ip.startswith('172.') or ip.startswith('192.168.'):
+        return "Internal", "Internal", 0, 0
+    try:
+        with urllib.request.urlopen(f"http://ip-api.com/json/{ip}?fields=status,country,city,lat,lon", timeout=1) as response:
+            data = json.loads(response.read().decode())
+            if data.get('status') == 'success':
+                res = (data['country'], data['city'], data['lat'], data['lon'])
+                GEO_CACHE[ip] = res
+                return res
+    except:
+        pass
+    return "Unknown", "Unknown", 0, 0
 
 # ============================================
 # CONFIGURATION
@@ -246,7 +267,12 @@ def process_event(event: Dict, raw_line: str) -> Optional[Tuple]:
     hash_input = f"{ts.isoformat()}|{src_ip}|{dest_ip}|{src_port}|{dest_port}|{event_type}"
     event_hash = hashlib.md5(hash_input.encode()).hexdigest()[:32]
     
+    country, city, lat, lon = get_geoip(src_ip)
+    
     return (
+        # Parameters for IF NOT EXISTS
+        event_hash, ts,
+        # Parameters for INSERT
         event_hash, ts,
         src_ip, dest_ip, src_port, dest_port,
         protocol, event_type,
@@ -255,7 +281,8 @@ def process_event(event: Dict, raw_line: str) -> Optional[Tuple]:
         payload, packet_data,
         bytes_in, bytes_out,
         dns_query, tls_sni,
-        raw_line,  # Full JSON without truncation
+        country, city, lat, lon,
+        raw_line,
     )
 
 def batch_insert(cursor, batch: List[Tuple]) -> int:
@@ -277,8 +304,9 @@ def batch_insert(cursor, batch: List[Tuple]) -> int:
             payload, packet_data,
             flow_bytes_in, flow_bytes_out,
             dns_query, tls_sni,
+            country, city, latitude, longitude,
             raw_json
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """
     
     try:
