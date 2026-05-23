@@ -39,7 +39,7 @@ resource "azurerm_sentinel_alert_rule_scheduled" "ssh_brute_force" {
   display_name               = "SSH Brute Force Attack Detected"
   severity                   = "High"
   enabled                    = true
-  depends_on = [azurerm_sentinel_log_analytics_workspace_onboarding.sentinel]
+  depends_on                 = [azurerm_sentinel_log_analytics_workspace_onboarding.sentinel]
 
   query = <<-QUERY
     Syslog
@@ -89,11 +89,11 @@ resource "azurerm_sentinel_alert_rule_scheduled" "web_attack" {
     | where Count > 5
   QUERY
 
-  query_frequency = "PT5M"
-  query_period    = "PT5M"
+  query_frequency   = "PT5M"
+  query_period      = "PT5M"
   trigger_operator  = "GreaterThan"
   trigger_threshold = 0
-  tactics = ["InitialAccess", "Execution"]
+  tactics           = ["InitialAccess", "Execution"]
 }
 
 # ============================================
@@ -106,8 +106,8 @@ resource "azurerm_sentinel_alert_rule_scheduled" "mozi_botnet" {
   severity                   = "High"
   enabled                    = true
 
-  depends_on = [azurerm_sentinel_log_analytics_workspace_onboarding.sentinel] 
-  
+  depends_on = [azurerm_sentinel_log_analytics_workspace_onboarding.sentinel]
+
   query = <<-QUERY
     Syslog
     | where SyslogMessage contains "Mozi.m"
@@ -115,11 +115,11 @@ resource "azurerm_sentinel_alert_rule_scheduled" "mozi_botnet" {
     | summarize Count = count() by HostIP, bin(TimeGenerated, 1h)
   QUERY
 
-  query_frequency = "PT1H"
-  query_period    = "PT1H"
+  query_frequency   = "PT1H"
+  query_period      = "PT1H"
   trigger_operator  = "GreaterThan"
   trigger_threshold = 0
-  tactics = ["CommandAndControl"]
+  tactics           = ["CommandAndControl"]
 }
 
 resource "azurerm_monitor_data_collection_rule" "linux_syslog" {
@@ -196,11 +196,11 @@ resource "azurerm_sentinel_alert_rule_scheduled" "priv_escalation" {
     | where Count > 5
   QUERY
 
-  query_frequency = "PT5M"
-  query_period    = "PT5M"
-  trigger_operator = "GreaterThan"
+  query_frequency   = "PT5M"
+  query_period      = "PT5M"
+  trigger_operator  = "GreaterThan"
   trigger_threshold = 0
-  tactics = ["PrivilegeEscalation"]
+  tactics           = ["PrivilegeEscalation"]
 }
 
 # ====================================================================
@@ -221,11 +221,11 @@ resource "azurerm_sentinel_alert_rule_scheduled" "suspicious_login" {
     | where Count > 3
   QUERY
 
-  query_frequency = "PT5M"
-  query_period    = "PT5M"
+  query_frequency   = "PT5M"
+  query_period      = "PT5M"
   trigger_operator  = "GreaterThan"
   trigger_threshold = 0
-  tactics = ["CredentialAccess"]
+  tactics           = ["CredentialAccess"]
 }
 
 # =====================================================
@@ -246,11 +246,11 @@ resource "azurerm_sentinel_alert_rule_scheduled" "abnormal_process" {
     | where Count > 2
   QUERY
 
-  query_frequency = "PT5M"
-  query_period    = "PT5M"
+  query_frequency   = "PT5M"
+  query_period      = "PT5M"
   trigger_operator  = "GreaterThan"
   trigger_threshold = 0
-  tactics = ["Execution"]
+  tactics           = ["Execution"]
 }
 
 # ===========================================================
@@ -271,11 +271,11 @@ resource "azurerm_sentinel_alert_rule_scheduled" "data_exfiltration" {
     | where Count > 5
   QUERY
 
-  query_frequency = "PT15M"
-  query_period    = "PT15M"
+  query_frequency   = "PT15M"
+  query_period      = "PT15M"
   trigger_operator  = "GreaterThan"
   trigger_threshold = 0
-  tactics = ["Exfiltration"]
+  tactics           = ["Exfiltration"]
 }
 
 # ==================================================

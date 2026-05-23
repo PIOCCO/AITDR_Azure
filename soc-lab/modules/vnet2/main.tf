@@ -1,7 +1,7 @@
 variable "resource_group_name" {}
 variable "location" {}
-variable "dmz_subnet_id" {}   
-variable "data_subnet_id" {}  
+variable "dmz_subnet_id" {}
+variable "data_subnet_id" {}
 
 
 resource "azurerm_virtual_network" "vnet2" {

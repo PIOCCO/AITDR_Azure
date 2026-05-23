@@ -8,14 +8,14 @@ resource "azurerm_storage_account" "logs_storage" {
   resource_group_name      = var.resource_group_name
   location                 = var.location
   account_tier             = "Standard"
-  account_replication_type = "LRS"      # cheapest option
+  account_replication_type = "LRS" # cheapest option
 
   # Only allow access from Vnet1 and Vnet2
   network_rules {
-    default_action             = "Allow"
+    default_action = "Allow"
     virtual_network_subnet_ids = [
-      var.dmz_subnet_id,      # VM1 can upload logs
-      var.data_subnet_id      # Vnet2 can read logs
+      var.dmz_subnet_id, # VM1 can upload logs
+      var.data_subnet_id # Vnet2 can read logs
     ]
   }
 }
@@ -30,7 +30,7 @@ resource "random_string" "suffix" {
 # Container to store log files
 resource "azurerm_storage_container" "logs_container" {
   name                  = "attack-logs"
-  storage_account_id  = azurerm_storage_account.logs_storage.id 
+  storage_account_id    = azurerm_storage_account.logs_storage.id
   container_access_type = "private"
 }
 

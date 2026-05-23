@@ -103,6 +103,11 @@ write_files:
     encoding: b64
     content: ${base64encode(file("${path.module}/scripts/docker-compose.yml"))}
 
+  - path: /var/lib/aitdr/nginx.conf
+    permissions: '0644'
+    encoding: b64
+    content: ${base64encode(file("${path.module}/scripts/nginx.conf"))}
+
 runcmd:
   - bash /var/lib/aitdr/bootstrap.sh "${var.key_vault_uri}"
 EOF
@@ -193,15 +198,15 @@ resource "azurerm_role_assignment" "vm1_storage_access" {
 # ============================================
 # AZURE MONITOR AGENT
 # ============================================
-resource "azurerm_virtual_machine_extension" "ama" {
-  name                       = "AzureMonitorLinuxAgent"
-  virtual_machine_id         = azurerm_linux_virtual_machine.vm1_webserver.id
-  publisher                  = "Microsoft.Azure.Monitor"
-  type                       = "AzureMonitorLinuxAgent"
-  type_handler_version       = "1.0"
-  auto_upgrade_minor_version = true
-  depends_on                 = [azurerm_linux_virtual_machine.vm1_webserver]
-}
+# resource "azurerm_virtual_machine_extension" "ama" {
+#   name                       = "AzureMonitorLinuxAgent"
+#   virtual_machine_id         = azurerm_linux_virtual_machine.vm1_webserver.id
+#   publisher                  = "Microsoft.Azure.Monitor"
+#   type                       = "AzureMonitorLinuxAgent"
+#   type_handler_version       = "1.0"
+#   auto_upgrade_minor_version = true
+#   depends_on                 = [azurerm_linux_virtual_machine.vm1_webserver]
+# }
 
 # ============================================
 # AUTO SHUTDOWN - 11PM every day

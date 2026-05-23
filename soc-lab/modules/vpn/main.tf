@@ -11,6 +11,7 @@
 #   resource_group_name = var.resource_group_name
 #   allocation_method   = "Static"
 #   sku                 = "Standard"
+#   zones               = ["1", "2", "3"]
 # }
 
 # # VPN Gateway
@@ -20,9 +21,9 @@
 #   resource_group_name = var.resource_group_name
 #   type                = "Vpn"
 #   vpn_type            = "RouteBased"
-#   sku                 = "VpnGw1"   
+#   sku                 = "VpnGw1AZ"   
 #   active_active       = false
-  
+
 #   ip_configuration {
 #     name                          = "vpn-ip-config"
 #     public_ip_address_id          = azurerm_public_ip.vpn_pip.id

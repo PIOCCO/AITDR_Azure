@@ -20,13 +20,13 @@ variable "nsg_dmz_id" {}
 # Captures all traffic in the subnet
 # ============================================
 resource "azurerm_network_watcher_flow_log" "vnet_dmz_flow" {
-  name                  = "vnet-dmz-flow-logs"
-  network_watcher_name  = azurerm_network_watcher.nw.name
-  resource_group_name   = azurerm_network_watcher.nw.resource_group_name
-  target_resource_id    = var.dmz_subnet_id
-  storage_account_id    = var.storage_account_id
-  enabled               = true
-  version               = 2
+  name                 = "vnet-dmz-flow-logs"
+  network_watcher_name = azurerm_network_watcher.nw.name
+  resource_group_name  = azurerm_network_watcher.nw.resource_group_name
+  target_resource_id   = var.dmz_subnet_id
+  storage_account_id   = var.storage_account_id
+  enabled              = true
+  version              = 2
 
   retention_policy {
     enabled = true

@@ -4,10 +4,26 @@ services:
   dvwa:
     image: vulnerables/web-dvwa
     container_name: dvwa
-    ports:
-      - "80:80"
     env_file:
       - .db.env
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - dvwa
     restart: always
     logging:
       driver: "json-file"

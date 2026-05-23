@@ -8,26 +8,49 @@
       "name": "SOAR-Email-Alert",
       "location": "${location}",
       "identity": { "type": "SystemAssigned" },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', 'azuresentinel')]"
+      ],
       "properties": {
         "state": "Enabled",
+        "parameters": {
+          "$connections": {
+            "value": {
+              "azuresentinel": {
+                "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuresentinel')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', 'azuresentinel')]",
+                "connectionName": "azuresentinel"
+              }
+            }
+          }
+        },
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
           "contentVersion": "1.0.0.0",
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            }
+          },
           "triggers": {
-            "When_Incident": {
-              "type": "Request",
-              "kind": "Http",
+            "Microsoft_Sentinel_incident": {
+              "type": "ApiConnection",
               "inputs": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "incidentId":   { "type": "string" },
-                    "incident":     { "type": "string" },
-                    "severity":     { "type": "string" },
-                    "attackerIP":   { "type": "string" },
-                    "incidentType": { "type": "string" }
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['azuresentinel']['connectionId']"
                   }
-                }
+                },
+                "method": "post",
+                "path": "/incident/event"
+              },
+              "recurrence": {
+                "frequency": "Minute",
+                "interval": 1
+              },
+              "metadata": {
+                "operationId": "Microsoft_Sentinel_incident"
               }
             }
           },
@@ -38,6 +61,18 @@
               "inputs": "🚨 AITDR Security Alert\n\nIncident ID: @{triggerBody()?['incidentId']}\nType: @{triggerBody()?['incidentType']}\nSeverity: @{triggerBody()?['severity']}\nAttacker IP: @{triggerBody()?['attackerIP']}\nDetails: @{triggerBody()?['incident']}\nTime: @{utcNow()}"
             }
           }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "name": "azuresentinel",
+      "location": "${location}",
+      "properties": {
+        "displayName": "Sentinel Connection",
+        "api": {
+          "id": "[concat(subscription().id, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuresentinel')]"
         }
       }
     }

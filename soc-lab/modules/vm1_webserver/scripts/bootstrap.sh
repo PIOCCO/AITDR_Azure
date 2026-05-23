@@ -174,6 +174,19 @@ iptables -I DOCKER-USER -d 169.254.169.254 -j DROP 2>/dev/null || true
 netfilter-persistent save 2>/dev/null || true
 
 # ============================================
+# GENERATE SSL CERTIFICATE
+# ============================================
+log info "Generating self-signed SSL certificate for honeypot..."
+mkdir -p /home/adminuser/ssl
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /home/adminuser/ssl/honeypot.key \
+    -out /home/adminuser/ssl/honeypot.crt \
+    -subj "/C=US/ST=State/L=City/O=AITDR/CN=honeypot.local"
+chmod 600 /home/adminuser/ssl/honeypot.key
+chmod 644 /home/adminuser/ssl/honeypot.crt
+chown -R adminuser:adminuser /home/adminuser/ssl
+
+# ============================================
 # COPY RUNTIME SCRIPTS
 # ============================================
 log info "Installing runtime scripts..."
@@ -183,6 +196,8 @@ cp /var/lib/aitdr/parse_suricata.py /home/adminuser/parse_suricata.py
 cp /var/lib/aitdr/init_db.py       /home/adminuser/init_db.py
 cp /var/lib/aitdr/create_tables.sql /home/adminuser/create_tables.sql
 cp /var/lib/aitdr/docker-compose.yml /home/adminuser/docker-compose.yml
+cp /var/lib/aitdr/nginx.conf       /home/adminuser/nginx.conf
+
 # aitdr-init.sh is already copied by the previous block, but let's ensure consistency
 cp /var/lib/aitdr/aitdr-init.sh /home/adminuser/aitdr-init.sh
 # Inject the Key Vault URI into the script
@@ -196,6 +211,7 @@ chmod 750 /home/adminuser/parse_suricata.py
 chmod 750 /home/adminuser/init_db.py
 chmod 644 /home/adminuser/create_tables.sql
 chmod 644 /home/adminuser/docker-compose.yml
+chmod 644 /home/adminuser/nginx.conf
 
 chown adminuser:adminuser \
     /home/adminuser/collect-logs.sh \
@@ -203,7 +219,9 @@ chown adminuser:adminuser \
     /home/adminuser/parse_suricata.py \
     /home/adminuser/init_db.py \
     /home/adminuser/create_tables.sql \
-    /home/adminuser/docker-compose.yml
+    /home/adminuser/docker-compose.yml \
+    /home/adminuser/nginx.conf
+
 
 # ============================================
 # INSTALL SYSTEMD UNITS

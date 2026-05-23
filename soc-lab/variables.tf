@@ -18,7 +18,7 @@ variable "ssh_public_key" {
 variable "hub_address_space" {
   description = "Hub VNet address space"
   type        = string
-  default     = "10.10.0.0/24"   # ← fixed from /16 to /24
+  default     = "10.10.0.0/24" # ← fixed from /16 to /24
 }
 
 variable "vnet1_address_space" {
@@ -42,7 +42,7 @@ variable "vnet3_address_space" {
 variable "kali_ip" {
   description = "KaliLinux public IP for attack simulation"
   type        = string
-  default     = "196.117.56.86"  
+  default     = "196.117.56.86"
 }
 
 variable "sql_admin_password" {
@@ -82,7 +82,7 @@ variable "sentinel_principal_id" {
 variable "tenant_id" {
   description = "Azure AD tenant ID for Key Vault"
   type        = string
-} 
+}
 
 variable "admin_object_id" {
   description = "Azure AD object ID of the admin user for Key Vault access"

@@ -79,8 +79,8 @@ resource "azurerm_data_factory_linked_service_azure_blob_storage" "storage_link"
 }
 
 resource "azurerm_data_factory_linked_service_azure_sql_database" "sql_link" {
-  name            = "LinkedService-SQLDatabase"
-  data_factory_id = azurerm_data_factory.adf.id
+  name              = "LinkedService-SQLDatabase"
+  data_factory_id   = azurerm_data_factory.adf.id
   connection_string = "Server=tcp:${azurerm_mssql_server.sql_server.fully_qualified_domain_name},1433;Database=${azurerm_mssql_database.attack_logs_db.name};User ID=${var.sql_admin_login};Password=${var.sql_admin_password};Encrypt=yes;TrustServerCertificate=no;"
 }
 

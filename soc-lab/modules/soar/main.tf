@@ -178,6 +178,11 @@ resource "azurerm_sentinel_automation_rule" "auto_ban" {
     status   = "Active"
     severity = "High"
   }
+
+  action_playbook {
+    order        = 1
+    logic_app_id = data.azurerm_logic_app_workflow.ban_attacker.id
+  }
 }
 
 resource "azurerm_sentinel_automation_rule" "web_attack_response" {

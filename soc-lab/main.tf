@@ -41,7 +41,7 @@ module "vnet2" {
   source              = "./modules/vnet2"
   resource_group_name = azurerm_resource_group.soc_lab.name
   location            = azurerm_resource_group.soc_lab.location
-  dmz_subnet_id       = module.vnet1.dmz_subnet_id  
+  dmz_subnet_id       = module.vnet1.dmz_subnet_id
   data_subnet_id      = module.vnet2.data_subnet_id
 }
 
@@ -72,13 +72,13 @@ module "nsg" {
   source              = "./modules/nsg"
   resource_group_name = azurerm_resource_group.soc_lab.name
   location            = azurerm_resource_group.soc_lab.location
-  kali_ip             = var.kali_ip  
+  kali_ip             = var.kali_ip
 
-  dmz_subnet_id    = module.vnet1.dmz_subnet_id
-  vm_ad_subnet_id  = module.vnet1.vm_ad_subnet_id
-  data_subnet_id   = module.vnet2.data_subnet_id
-  siem_subnet_id   = module.vnet3.siem_subnet_id
-  soar_subnet_id   = module.vnet3.soar_subnet_id
+  dmz_subnet_id   = module.vnet1.dmz_subnet_id
+  vm_ad_subnet_id = module.vnet1.vm_ad_subnet_id
+  data_subnet_id  = module.vnet2.data_subnet_id
+  siem_subnet_id  = module.vnet3.siem_subnet_id
+  soar_subnet_id  = module.vnet3.soar_subnet_id
 }
 
 module "key_vault" {
@@ -103,8 +103,8 @@ module "vm1_webserver" {
   dmz_subnet_id       = module.vnet1.dmz_subnet_id
   ssh_public_key      = var.ssh_public_key
   key_vault_uri       = module.key_vault.key_vault_uri
-  key_vault_id = module.key_vault.key_vault_id
-  storage_account_id = module.vnet2.storage_account_id
+  key_vault_id        = module.key_vault.key_vault_id
+  storage_account_id  = module.vnet2.storage_account_id
 
   depends_on = [module.key_vault]
 }
@@ -140,8 +140,8 @@ module "soar" {
   alert_email             = var.alert_email
   subscription_id         = var.subscription_id
   nsg_name                = var.nsg_name
-  sentinel_principal_id = var.sentinel_principal_id
-  nsg_soar_id = module.nsg.nsg_soar_id
+  sentinel_principal_id   = var.sentinel_principal_id
+  nsg_soar_id             = module.nsg.nsg_soar_id
 
   depends_on = [module.vm1_webserver]
 }

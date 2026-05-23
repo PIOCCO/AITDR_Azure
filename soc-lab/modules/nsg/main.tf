@@ -248,7 +248,7 @@ resource "azurerm_network_security_group" "nsg_soar" {
 
 output "nsg_dmz_id" {
   value = azurerm_network_security_group.nsg_dmz.id
- }
+}
 
 # ============================================
 # ASSOCIATE NSGs TO SUBNETS

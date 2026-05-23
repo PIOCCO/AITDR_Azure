@@ -229,6 +229,9 @@ try:
         datetime.now().date(),
         web_count, ssh_count, bot_count, sqli_count, xss_count
     )
+except Exception as e:
+    print(f"Summary update error: {e}")
+
 # ============================================
 # DATA RETENTION (30 DAY CLEANUP)
 # ============================================
